@@ -1,0 +1,40 @@
+(() => {
+'use strict';
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const body=document.body,nav=$('#main-nav'),menu=$('#menu-toggle');
+const page=(location.pathname.split('/').pop()||'index.html').toLowerCase();
+$$('.main-nav a').forEach(a=>{if((a.getAttribute('href')||'').split('/').pop().toLowerCase()===page){a.classList.add('active');a.setAttribute('aria-current','page');}});
+const theme=$('#theme-toggle'),themeIcon=$('#theme-icon'),themeLabel=$('.theme-label');
+const savedTheme=localStorage.getItem('villa-serena-theme');if(savedTheme!=='light')body.classList.add('dark');else body.classList.remove('dark');
+function syncTheme(){const dark=body.classList.contains('dark');if(themeIcon)themeIcon.textContent=dark?'☀':'☾';if(themeLabel)themeLabel.textContent=dark?'Claro':'Oscuro';if(theme){theme.setAttribute('aria-pressed',String(dark));theme.setAttribute('aria-label',dark?'Activar modo claro':'Activar modo oscuro');}}
+syncTheme();theme?.addEventListener('click',()=>{body.classList.toggle('dark');localStorage.setItem('villa-serena-theme',body.classList.contains('dark')?'dark':'light');syncTheme();});
+menu?.addEventListener('click',()=>{const open=nav?.classList.toggle('open');menu.setAttribute('aria-expanded',String(!!open));menu.setAttribute('aria-label',open?'Cerrar menú':'Abrir menú');});
+$$('.main-nav a').forEach(a=>a.addEventListener('click',()=>{nav?.classList.remove('open');menu?.setAttribute('aria-expanded','false');}));
+const progress=$('#page-progress');window.addEventListener('scroll',()=>{if(progress){const max=document.documentElement.scrollHeight-innerHeight;progress.style.width=(max>0?scrollY/max*100:0)+'%';}});
+$('#back-to-top')?.addEventListener('click',()=>window.scrollTo({top:0,behavior:'smooth'}));
+$$('[data-faq],.faq-question').forEach(el=>el.addEventListener('click',()=>el.closest('.faq-item')?.classList.toggle('open')));
+const toast=$('#toast');let toastTimer;function showToast(msg){if(!toast)return;toast.textContent=msg;toast.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>toast.classList.remove('show'),2600);}
+const prices={serena:45,doble:55,suite:80,familiar:95,panoramica:110,relax:68};
+const names={serena:'Habitación Serena',doble:'Habitación Doble',suite:'Suite Jardín',familiar:'Habitación Familiar',panoramica:'Suite Panorámica',relax:'Habitación Relax'};
+$$('[data-room]').forEach(btn=>btn.addEventListener('click',()=>{sessionStorage.setItem('villa-room',btn.dataset.room);location.href='reservar.html';}));
+const checkIn=$('#check-in'),checkOut=$('#check-out'),guests=$('#guests'),total=$('#estimate-total'),detail=$('#estimate-detail'),roomSelect=$('#room-type');
+const today=new Date();today.setHours(0,0,0,0);const todayISO=new Date(today.getTime()-today.getTimezoneOffset()*60000).toISOString().slice(0,10);
+if(checkIn)checkIn.min=todayISO;if(checkOut)checkOut.min=todayISO;
+const chosenRoom=sessionStorage.getItem('villa-room');if(roomSelect&&chosenRoom&&prices[chosenRoom])roomSelect.value=chosenRoom;
+function updateEstimate(){if(!total||!detail||!roomSelect)return;const rate=prices[roomSelect.value]||45;if(!checkIn?.value||!checkOut?.value){total.textContent='$'+rate.toFixed(2);detail.textContent='Selecciona las fechas para calcular.';return;}const nights=Math.round((new Date(checkOut.value+'T12:00:00')-new Date(checkIn.value+'T12:00:00'))/86400000);if(nights<=0){total.textContent='—';detail.textContent='La salida debe ser posterior a la entrada.';return;}total.textContent='$'+(rate*nights).toFixed(2);detail.textContent=`${nights} ${nights===1?'noche':'noches'} × $${rate} · ${guests?.value||1} huésped(es)`;}
+[checkIn,checkOut,roomSelect,guests].filter(Boolean).forEach(el=>el.addEventListener('change',()=>{if(checkIn?.value&&checkOut&&checkOut.value<=checkIn.value)checkOut.value='';if(checkOut&&checkIn?.value)checkOut.min=checkIn.value;updateEstimate();}));updateEstimate();
+const authenticated=sessionStorage.getItem('villa-demo-auth')==='true',gate=$('#booking-login-gate'),bookingForm=$('#booking-form');
+if(bookingForm){bookingForm.hidden=!authenticated;if(gate)gate.hidden=authenticated;}
+bookingForm?.addEventListener('submit',e=>{e.preventDefault();const form=e.currentTarget;if(!form.reportValidity())return;const name=$('#guest-name'),email=$('#guest-email'),msg=$('#booking-message');if(!name||name.value.trim().length<3||!email?.validity.valid){if(msg)msg.textContent='Revisa los campos señalados antes de continuar.';return;}if(!checkIn?.value||!checkOut?.value||checkOut.value<=checkIn.value){if(msg)msg.textContent='Selecciona fechas válidas: la salida debe ser posterior a la entrada.';checkOut?.focus();return;}const nights=Math.round((new Date(checkOut.value+'T12:00:00')-new Date(checkIn.value+'T12:00:00'))/86400000),price=prices[roomSelect?.value]||45;if(msg)msg.textContent=`Simulación lista, ${name.value.trim()}. ${names[roomSelect?.value]||'Habitación'} por ${nights} ${nights===1?'noche':'noches'}: $${(price*nights).toFixed(2)}. No es una reserva real.`;showToast('Cálculo de estancia completado');});
+$('#login-form')?.addEventListener('submit',e=>{e.preventDefault();if(!e.currentTarget.reportValidity())return;sessionStorage.setItem('villa-demo-auth','true');const m=$('#login-message');if(m)m.textContent='Acceso de demostración correcto. Ya puedes continuar con el simulador; no se creó una cuenta real.';showToast('Sesión de demostración iniciada');if(new URLSearchParams(location.search).get('next')==='reservar.html')setTimeout(()=>location.href='reservar.html',700);});
+$('#logout-demo')?.addEventListener('click',()=>{sessionStorage.removeItem('villa-demo-auth');location.href='index.html';});
+$('#toggle-password')?.addEventListener('click',()=>{const input=$('#login-password');if(!input)return;const show=input.type==='password';input.type=show?'text':'password';$('#toggle-password').setAttribute('aria-label',show?'Ocultar contraseña':'Mostrar contraseña');});
+const lightbox=$('#lightbox'),lightboxImage=$('#lightbox-image'),caption=$('#lightbox-caption'),galleryItems=$$('.gallery-item[data-image]');let galleryIndex=0,lastTrigger=null;
+function showGalleryImage(index){if(!galleryItems.length||!lightbox||!lightboxImage)return;galleryIndex=(index+galleryItems.length)%galleryItems.length;const item=galleryItems[galleryIndex],img=$('img',item);lightboxImage.src=item.dataset.image;lightboxImage.alt=img?.alt||'Imagen ampliada';if(caption)caption.textContent=$('b',item)?.textContent||img?.alt||'';}
+function openGallery(index,item){if(!lightbox)return;lastTrigger=item;showGalleryImage(index);lightbox.classList.add('open');lightbox.setAttribute('aria-hidden','false');body.classList.add('lightbox-open');$('#lightbox-close')?.focus();}
+galleryItems.forEach((item,index)=>item.addEventListener('click',()=>openGallery(index,item)));
+function closeLightbox(){if(!lightbox)return;lightbox.classList.remove('open');lightbox.setAttribute('aria-hidden','true');body.classList.remove('lightbox-open');if(lightboxImage)lightboxImage.src='';lastTrigger?.focus();}
+$('#lightbox-close')?.addEventListener('click',closeLightbox);$('#lightbox-prev')?.addEventListener('click',()=>showGalleryImage(galleryIndex-1));$('#lightbox-next')?.addEventListener('click',()=>showGalleryImage(galleryIndex+1));lightbox?.addEventListener('click',e=>{if(e.target===lightbox)closeLightbox();});
+document.addEventListener('keydown',e=>{if(!lightbox?.classList.contains('open'))return;if(e.key==='Escape')closeLightbox();if(e.key==='ArrowRight')showGalleryImage(galleryIndex+1);if(e.key==='ArrowLeft')showGalleryImage(galleryIndex-1);});
+if('IntersectionObserver'in window){const observer=new IntersectionObserver(entries=>entries.forEach(entry=>{if(entry.isIntersecting){entry.target.classList.add('is-visible','visible');observer.unobserve(entry.target);}}),{threshold:.12});$$('.reveal,.animate-on-scroll').forEach(el=>observer.observe(el));}else{$$('.reveal,.animate-on-scroll').forEach(el=>el.classList.add('is-visible','visible'));}
+})();
